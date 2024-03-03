@@ -1,5 +1,5 @@
 # segpy
-Package that provides a semantic segmentation for dynamic SLAM via pytorch.
+Package that provides a semantic segmentation for dynamic SLAM via PyTorch.
 ### Installation
 Clone the package: \
 `git clone https://github.com/artem-kondratew/segpy.git`
