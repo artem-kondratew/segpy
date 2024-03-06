@@ -1,10 +1,13 @@
 import torch
 import onnx
 import onnxruntime
+import cv2 as cv
+import numpy as np
+from PIL import Image
 
 from torchvision.models.segmentation import fcn_resnet50, FCN_ResNet50_Weights
-
-import numpy as np
+from torchvision.transforms import PILToTensor
+from torchvision.utils import draw_segmentation_masks
 
 
 class Resnet():    
@@ -17,6 +20,7 @@ class Resnet():
         self.ort_session = None
         self.classes = self.weights.meta["categories"]
         print('device:', self.device)
+        self.pil_to_tensor = PILToTensor()
 
     def get_classes(self) -> list:
         return self.classes
@@ -27,6 +31,9 @@ class Resnet():
     def eval(self):
         self.model.eval()
 
+    def cv2torch(self, frame : cv.Mat) -> torch.Tensor:
+        return self.pil_to_tensor(Image.fromarray(frame))
+
     def create_batch(self, tensor : torch.Tensor) -> torch.Tensor:
         return torch.stack([self.transforms(tensor)]).to(self.device)
     
@@ -36,7 +43,7 @@ class Resnet():
         
     def export_to_onnx_fp32(self, path : str):
         print('exporting to onnx...')
-        dummy_input = torch.randn(1, 3, 480, 640)
+        dummy_input = torch.randn(1, 3, 480, 640).to(self.device)
         torch.onnx.export(self.model,
                           dummy_input,
                           path,
@@ -49,11 +56,10 @@ class Resnet():
     def export_to_onnx_int8(self, path : str):
         pass
 
-    def check_onnx_model(self, path : str):
+    def ort_check(self, path : str):
         try:
-            print('loading onnx model...')
-            self.onnx_model = onnx.load(path)
-            onnx_model = onnx.load('segpy.onnx')
+            print('checking onnx model...')
+            onnx_model = onnx.load(path)
             onnx.checker.check_model(onnx_model)
             print('successsfully checked')
         except FileNotFoundError:
@@ -62,7 +68,7 @@ class Resnet():
     def ort_load(self, path : str) -> bool:
         try:
             self.ort_session = onnxruntime.InferenceSession(path, providers=onnxruntime.get_available_providers())
-            print('onnxruntime device:', onnxruntime.get_device())
+            print('onnxruntime device:', self.ort_session.get_providers())
             print('onnxruntime inputs:', [o.name for o in self.ort_session.get_inputs()])
             print('onnxruntime outputs:', [o.name for o in self.ort_session.get_outputs()])
             return True
@@ -79,3 +85,17 @@ class Resnet():
             return None
         output = self.ort_session.run(['output'], {'input': self.to_numpy(self.create_batch(tensor))})
         return torch.tensor(output[0]).cpu()
+
+    def visualize(self, frame : cv.Mat, tensor : torch.Tensor, output : torch.Tensor):
+        normalized_masks = torch.nn.functional.softmax(output, dim=1)
+        sem_class_to_idx = {cls: idx for (idx, cls) in enumerate(self.get_classes())}
+        person_mask = [normalized_masks[0, sem_class_to_idx['person']]]
+        class_dim = 1
+        boolean_person_mask = (normalized_masks.argmax(class_dim) == sem_class_to_idx['person'])
+        cv_mask = boolean_person_mask.numpy().transpose(1, 2, 0) * np.uint8(255)
+        cv.imshow('mask', cv_mask)
+        person_frame = draw_segmentation_masks(tensor, masks=boolean_person_mask, alpha=0.7)
+        result = person_frame.numpy().transpose(1, 2, 0)
+        cv.imshow('result', result)
+        cv.imshow('frame', frame)
+        cv.waitKey(20)
