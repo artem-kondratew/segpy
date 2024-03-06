@@ -1,5 +1,3 @@
 .vscode
-venv/*
-tum_static.mp4
-fcn_resnet50_coco-1167a1af.pth
-__pycache__/*
+venv*
+__pycache__
