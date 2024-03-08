@@ -1,6 +1,7 @@
+import numpy as np
+import cv2 as cv
 import time
 import torch
-import cv2 as cv
 
 import yolo
 
@@ -9,20 +10,13 @@ def main():
     torch.set_num_threads(4)
     print('threads:', torch.get_num_threads())
 
-    onnx_fp32_path = './resnet_fp32.onnx'
+    onnx_path = './yolov8n-seg.onnx'
     video_path = './tum_static.mp4'
 
     cap = cv.VideoCapture(video_path)
     
-
-    model = yolo.Yolo()
-    model.eval()
-
-    model.export_to_onnx_fp32(onnx_fp32_path)
-
-    model.ort_check(onnx_fp32_path)
-
-    model.ort_load(onnx_fp32_path)
+    model = yolo.Yolo(use_onnx=False, onnx_path=onnx_path)
+    # model.ort_export()
     
     t = time.time()
     cnt = 0
@@ -32,16 +26,11 @@ def main():
         if not ret:
             continue
 
-        t = time.time()
-        tensor = model.cv2torch(frame)
-        output = model.run(tensor)
-        # output = model.ort_run(tensor)
-        model.visualize(frame, tensor, output)
-        nt = time.time()
-        dt = nt - t
-        t = nt
-        cnt += 1
-        print(cnt, 'dt =', dt)
+        st = time.time()
+        result = model.run(frame)
+        model.visualize(result, frame)
+        ft = time.time()
+        print(1 / (ft - st))
 
     print('eof')
 
