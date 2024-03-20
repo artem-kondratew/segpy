@@ -14,5 +14,6 @@ Install required python packages: \
 For CPU use `python3 -m pip install -r requirements.txt` \
 For GPU use `python3 -m pip install -r gpu_requirements.txt`
 
-Run main.py: \
-`python3 main.py`
+### Usage
+Launch segmentation files: \
+`python3 run_*.py`
